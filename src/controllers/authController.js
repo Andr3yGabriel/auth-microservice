@@ -1,12 +1,25 @@
-const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 const sendMessage = require('../../kafka/producers/kafkaProducer');
 const emailService = require('../services/emailService');
-
 const secretKey = process.env.JWT_SECRET || 'secret';
 
 class AuthController {
-    static async register (req, res) {
+    static generateToken(payload) {
+        const { id, purpose, expiresIn } = payload;
+
+        if (!id || !purpose || !expiresIn) {
+            throw new Error('Missing information!');
+        }
+
+        return jwt.sign(
+            { id, purpose },
+            secretKey,
+            { expiresIn: expiresIn }
+        );
+    }
+
+    static async register(req, res) {
         try {
             const { username, email, password } = req.body;
             const user = await User.findOne({ where: { email }});
@@ -14,11 +27,7 @@ class AuthController {
                 return res.status(400).json({ message: 'User already exists' });
             }
             const newUser = await User.create({ username, email, password });
-            const token = jwt.sign(
-                { id: newUser.id, purpose: 'email-verification' },
-                secretKey,
-                { expiresIn: '1h' }
-              );
+            const token = AuthController.generateToken({ id: newUser.id, purpose: 'email-verification', expiresIn: '1h' });
 
             await emailService.sendVerificationEmail(email, token);
 
@@ -36,10 +45,10 @@ class AuthController {
         }
     }
 
-    
     static async verifyEmail(req, res) {
         try {
-            const { token } = req.query;
+            const { token } = req.params;
+
             const decoded = jwt.verify(token, secretKey);
     
             const user = await User.findByPk(decoded.id);
@@ -55,28 +64,6 @@ class AuthController {
         } catch (error) {
             console.error('Error at verify email:', error);
             res.status(400).json({ message: 'Unexpected error at verify email', error });
-        }
-    }
-
-    static async forgotPassword (req, res) {
-        try {
-            const { email } = req.body;
-            const user = await User.findOne({ where: { email }});
-            if (!user) {
-                return res.status(400).json({ message: 'User not found' });
-            }
-            const token = jwt.sign(
-                { id: user.id, purpose: 'password-reset' },
-                secretKey,
-                { expiresIn: '1h' }
-              );
-
-            await emailService.sendPasswordResetEmail(email, token);
-
-            res.status(200).json({ message: 'Password reset link sent to email' });
-        } catch (error) {
-            console.error('Error at forgot password:', error);
-            res.status(400).json({ message: 'Unexpected error at forgot password', error });
         }
     }
 
@@ -96,69 +83,79 @@ class AuthController {
                 return res.status(400).json({ message: 'Invalid password' });
             }
 
-            const userHasMultifactor = user.hasMultifactor;
-
-            if (userHasMultifactor) {
-                const token = jwt.sign(
-                    { id: user.id, purpose: 'confirm-login' },
-                    secretKey,
-                    { expiresIn: '1h' }
-                );
-
-                await emailService.sendLoginConfirmEmail(email, token);
+            if (user.hasMultifactor) {
+                await AuthController.confirmLogin(req, res);
+            } else {
+                const token = AuthController.generateToken({ id: user.id, purpose: 'access', expiresIn: '7d' });
+    
+                await sendMessage('auth-events', {
+                    event: 'user-logged_in',
+                    userId: user.id,
+                    email
+                });
+    
+                res.status(200).json({ token });
             }
-
-            const token = jwt.sign(
-                { id: user.id, purpose: 'access' },
-                secretKey,
-                { expiresIn: '7d' }
-            );
-
-            await sendMessage('auth-events', {
-                event: 'user-logged_in',
-                userId: user.id,
-                email
-            });
-
-            res.status(200).json({ token });
-
         } catch (error) {
             console.error('Error at login:', error);
             res.status(400).json({ message: 'Unexpected error at login!', error });
         }
     }
 
-    static async confirmLogin (req, res) {
+    static async confirmLogin(req, res) {
         try {
-            const { token } = req.query;
+            const { email } = req.body;
+            const user = await User.findOne({ where: { email } });
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            const loginConfirmToken = AuthController.generateToken({ id: user.id, purpose: 'login-confirmation', expiresIn: '1h' });
+
+            await emailService.sendLoginConfirmEmail(email, loginConfirmToken);
+
+            res.status(200).json({ message: 'Confirmation email sent. Please check your inbox.' });
+        } catch (error) {
+            console.error('Error at confirmLogin:', error);
+            res.status(400).json({ message: 'Unexpected error at confirmLogin!', error });
+        }
+    }
+
+    static async verifyLogin(req, res) {
+        try {
+            const { token } = req.params;
+
+            console.log('Token:', token);
+
             const decoded = jwt.verify(token, secretKey);
 
             const user = await User.findByPk(decoded.id);
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
 
-            const accessToken = jwt.sign(
-                { id: user.id, purpose: 'access' },
-                secretKey,
-                { expiresIn: '7d' }
-              );
+            const accessToken = AuthController.generateToken({ id: user.id, purpose: 'access', expiresIn: '7d' });
 
             await sendMessage('auth-events', {
                 event: 'user-logged_in',
                 userId: user.id,
-                email
+                email: user.email
             });
 
-            res.status(200).json({ accessToken });
-
+            res.status(200).json({ token: accessToken });
         } catch (error) {
-            console.error('Error at confirm login:', error);
-            res.status(400).json({ message: 'Unexpected error at confirm login', error });
+            console.error('Error at verifyLogin:', error);
+            res.status(400).json({ message: 'Unexpected error at verifyLogin!', error });
         }
     }
 
     static async activateMultifactorAuth (req, res) {
         try {
-            const { email } = req.body;
-            const user = await User.findOne({ where: { email }});
+            const { token } = req.params;
+            const decoded = jwt.verify(token, secretKey);
+
+            const user = await User.findOne({ where: { email: decoded.email }});
 
             if (!user) {
                 return res.status(400).json({ message: 'User not found' });

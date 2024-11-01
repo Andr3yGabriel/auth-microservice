@@ -4,8 +4,8 @@ const jwt = require('jsonwebtoken');
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
@@ -16,7 +16,7 @@ const secretKey = process.env.JWT_SECRET || 'secret';
 
 class emailService {
     static async sendVerificationEmail(email, token) {
-        const verificationUrl = `${routes.AUTH.VERIFY_EMAIL}/${token}`;
+        const verificationUrl = `${routes.AUTH.VERIFY}/${token}`;
     
         const multifactorToken = jwt.sign(
             { email, purpose: 'activate-mfa' },
@@ -37,21 +37,8 @@ class emailService {
         await transporter.sendMail(mailOptions);
     }
 
-    static async sendPasswordResetEmail (email, token) {
-        const resetUrl = `${routes.RESET_PASSWORD}/${token}`;
-    
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: 'Reset your password',
-            text: `Click on the following link to reset your password: ${resetUrl}`
-        };
-    
-        await transporter.sendMail(mailOptions);
-    };
-
-    static async sendLoginConfirmEmail (email, token) {
-        const confirmLoginUrl = `${routes.CONFIRM_LOGIN}/${token}`;
+    static async sendLoginConfirmEmail(email, token) {
+        const confirmLoginUrl = `${routes.AUTH.VERIFY_LOGIN}/${token}`;
 
         const mailOptions = {
             from: process.env.EMAIL_USER,
@@ -63,6 +50,5 @@ class emailService {
         await transporter.sendMail(mailOptions);
     }
 }
-
 
 module.exports = emailService;

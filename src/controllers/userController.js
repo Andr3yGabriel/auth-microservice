@@ -3,9 +3,12 @@ const User = require('../models/User');
 class userController {
     static async getUsers(req, res) {
         try {
-            const users = await User.findAll();
+            const users = await User.findAll({
+                attributes: ['id', 'name', 'email', 'hasMultifactor', 'isVerified']
+            });
             res.status(200).json(users);
         } catch (error) {
+            console.error('Error at getUsers', error);
             res.status(400).json({ message: 'Unexpected error at getUsers', error });
         }
     }
@@ -20,6 +23,7 @@ class userController {
             await user.destroy();
             res.status(200).json({ message: 'User deleted successfully!' });
         } catch (error) {
+            console.error('Error at deleteUser', error);
             res.status(400).json({ message: 'Unexpected error at deleteUser', error });
         }
     }

@@ -8,12 +8,9 @@ router.post('/auth/register', authController.register);
 router.post('/auth/login', authController.login);
 router.get('/auth/verify/:token', authController.verifyEmail);
 router.get('/auth/activateMFA/:token', authController.activateMultifactorAuth);
-router.post('/auth/forgot-password/:token', authController.forgotPassword);
-router.post('/auth/confirm-login/:token', authController.confirmLogin);
+router.get('/auth/verify-login/:token', authController.verifyLogin);
 
-router.use(verifyToken('access'));
-
-router.get('/users', userController.getUsers);
-router.delete('/users/:id', userController.deleteUser);
+router.get('/users', verifyToken('access'), userController.getUsers);
+router.delete('/users/:id', verifyToken('access'), userController.deleteUser);
 
 module.exports = router;

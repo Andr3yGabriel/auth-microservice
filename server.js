@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
   try {
-    await sequelize.sync({ force: true });
+    await sequelize.sync({ alter: true });
     console.log('Database synchronized');
 
     runConsumer().catch(error => console.error('Error in running consumer:', error));
