@@ -5,6 +5,7 @@ const routes = {
         VERIFY: `${BASE_URL}/auth/verify`,
         VERIFY_LOGIN: `${BASE_URL}/auth/verify-login`,
         ACTIVATE_MULTIFACTOR: `${BASE_URL}/auth/activateMFA`,
+        RESET_PASSWORD: `${BASE_URL}/auth/reset-password`,
     }
 };
 

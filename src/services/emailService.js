@@ -17,7 +17,7 @@ const secretKey = process.env.JWT_SECRET || 'secret';
 class emailService {
     static async sendVerificationEmail(email, token) {
         const verificationUrl = `${routes.AUTH.VERIFY}/${token}`;
-    
+
         const multifactorToken = jwt.sign(
             { email, purpose: 'activate-mfa' },
             secretKey,
@@ -25,7 +25,7 @@ class emailService {
         );
 
         const activateMultifactorUrl = `${routes.AUTH.ACTIVATE_MULTIFACTOR}/${multifactorToken}`;
-    
+
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,
@@ -33,7 +33,7 @@ class emailService {
             text: `Click on the following link to verify your email: ${verificationUrl}\n\n
                    If you want to activate multi-factor authentication, click on the following link: ${activateMultifactorUrl}`
         };
-    
+
         await transporter.sendMail(mailOptions);
     }
 
@@ -45,6 +45,19 @@ class emailService {
             to: email,
             subject: 'Confirm your login',
             text: `Click on the following link to confirm your login: ${confirmLoginUrl}`
+        };
+
+        await transporter.sendMail(mailOptions);
+    }
+
+    static async sendPasswordResetEmail(email, token) {
+        const resetPasswordUrl = `${routes.AUTH.RESET_PASSWORD}/${token}`;
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Reset your password',
+            text: `Click on the following link to reset your password: ${resetPasswordUrl}`
         };
 
         await transporter.sendMail(mailOptions);

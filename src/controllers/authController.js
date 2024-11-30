@@ -22,7 +22,7 @@ class AuthController {
     static async register(req, res) {
         try {
             const { username, email, password } = req.body;
-            const user = await User.findOne({ where: { email }});
+            const user = await User.findOne({ where: { email } });
             if (user) {
                 return res.status(400).json({ message: 'User already exists' });
             }
@@ -50,16 +50,16 @@ class AuthController {
             const { token } = req.params;
 
             const decoded = jwt.verify(token, secretKey);
-    
+
             const user = await User.findByPk(decoded.id);
-    
+
             if (!user) {
                 return res.status(404).json({ message: 'User not found' });
             }
-    
+
             user.isVerified = true;
             await user.save();
-    
+
             res.status(200).json({ message: 'Email verified successfully!' });
         } catch (error) {
             console.error('Error at verify email:', error);
@@ -67,10 +67,10 @@ class AuthController {
         }
     }
 
-    static async login (req, res) {
+    static async login(req, res) {
         try {
             const { email, password } = req.body;
-            const user = await User.findOne({ where: { email }});
+            const user = await User.findOne({ where: { email } });
             if (!user) {
                 return res.status(400).json({ message: 'User not found' });
             }
@@ -87,13 +87,13 @@ class AuthController {
                 await AuthController.confirmLogin(req, res);
             } else {
                 const token = AuthController.generateToken({ id: user.id, purpose: 'access', expiresIn: '7d' });
-    
+
                 await sendMessage('auth-events', {
                     event: 'user-logged_in',
                     userId: user.id,
                     email
                 });
-    
+
                 res.status(200).json({ token });
             }
         } catch (error) {
@@ -150,18 +150,23 @@ class AuthController {
         }
     }
 
-    static async activateMultifactorAuth (req, res) {
+    static async activateMultifactorAuth(req, res) {
         try {
             const { token } = req.params;
             const decoded = jwt.verify(token, secretKey);
 
-            const user = await User.findOne({ where: { email: decoded.email }});
+            const user = await User.findOne({ where: { email: decoded.email } });
 
             if (!user) {
                 return res.status(400).json({ message: 'User not found' });
             }
 
             user.hasMultifactor = true;
+            await sendMessage('auth-events', {
+                event: 'multifactor activated',
+                userId: user.id,
+                email: user.email
+            })
 
             await user.save();
 
@@ -169,6 +174,54 @@ class AuthController {
         } catch (error) {
             console.error('Error at activating multifactor auth:', error);
             res.status(400).json({ message: 'Unexpected error at activating multifactor auth', error });
+        }
+    }
+
+    static async resetPassword(req, res) {
+        try {
+            const { email } = req.body;
+            const user = await User.findOne({ where: { email } });
+
+            if (!user) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            const token = AuthController.generateToken({ id: user.id, purpose: 'password-reset', expiresIn: '1h' });
+
+            await emailService.sendPasswordResetEmail(email, token);
+
+            await sendMessage('auth-events', {
+                event: 'password reset requested',
+                userId: user.id,
+                email
+            });
+
+            res.status(200).json({ message: 'Password reset email sent. Please check your inbox.' });
+        } catch (error) {
+            console.error('Error at resetPassword:', error);
+            res.status(400).json({ message: 'Unexpected error at resetPassword', error });
+        }
+    }
+
+    static async changePassword(req, res) {
+        try {
+            const { token, newPassword } = req.body;
+            const decoded = jwt.verify(token, secretKey);
+
+            const user = await User.findByPk(decoded.id);
+            user.password = newPassword;
+            await user.save();
+
+            await sendMessage('auth-events', {
+                event: 'password changed',
+                userId: user.id,
+                email: user.email
+            });
+
+            res.status(200).json({ message: 'Password changed successfully!' });
+        } catch (error) {
+            console.error('Error at changePassword:', error);
+            res.status(400).json({ message: 'Unexpected error at changePassword', error });
         }
     }
 }
