@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const sendMessage = require('../../kafka/producers/kafkaProducer');
 const emailService = require('../services/emailService');
-const secretKey = process.env.JWT_SECRET || 'secret';
+const secretKey = process.env.JWT_SECRET;
 
 class AuthController {
     static generateToken(payload) {
@@ -126,8 +126,6 @@ class AuthController {
         try {
             const { token } = req.params;
 
-            console.log('Token:', token);
-
             const decoded = jwt.verify(token, secretKey);
 
             const user = await User.findByPk(decoded.id);
@@ -170,7 +168,7 @@ class AuthController {
 
             await user.save();
 
-            res.status(200).json({ message: 'Multifactor auth activated successfully!' });
+            window.location.href = 'http://localhost:5173/login';
         } catch (error) {
             console.error('Error at activating multifactor auth:', error);
             res.status(400).json({ message: 'Unexpected error at activating multifactor auth', error });

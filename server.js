@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const cors = require('cors');
-const sequelize  = require('./src/config/Database');
+const sequelize = require('./src/config/Database');
 const runConsumer = require('./kafka/consumers/kafkaConsumer');
 
 app.use(express.json());
@@ -10,7 +10,7 @@ const authRoutes = require('./src/routes/routes');
 app.use(cors());
 app.use('/api', authRoutes);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT;
 
 const startServer = async () => {
   try {

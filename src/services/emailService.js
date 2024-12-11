@@ -38,26 +38,22 @@ class emailService {
     }
 
     static async sendLoginConfirmEmail(email, token) {
-        const confirmLoginUrl = `${routes.AUTH.VERIFY_LOGIN}/${token}`;
-
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,
-            subject: 'Confirm your login',
-            text: `Click on the following link to confirm your login: ${confirmLoginUrl}`
+            subject: 'Login confirmation token',
+            text: `Paste this token on the login page: ${token}`
         };
 
         await transporter.sendMail(mailOptions);
     }
 
     static async sendPasswordResetEmail(email, token) {
-        const resetPasswordUrl = `${routes.AUTH.RESET_PASSWORD}/${token}`;
-
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: email,
-            subject: 'Reset your password',
-            text: `Click on the following link to reset your password: ${resetPasswordUrl}`
+            subject: 'Password reset token',
+            text: `Paste this token on the reset password page: ${token}`
         };
 
         await transporter.sendMail(mailOptions);
